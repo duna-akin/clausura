@@ -29,6 +29,11 @@ KEEP = [
     "F2H01", "F2H02", "F2FHA",          # endowment BOY/EOY + endowment presence flag
 ]
 
+# IPEDS pairs each value F2XXX with an imputation flag XF2XXX (letter code:
+# R/A = reported, C/P/Z/N = imputed or missing). F2FHA has no paired flag.
+KEEP_FLAGS = [f"X{c}" for c in KEEP[1:] if c != "F2FHA"]
+KEEP_ALL = KEEP + KEEP_FLAGS
+
 
 def load_year(year: int) -> pd.DataFrame:
     path = RAW / str(year) / YEAR_FILES[year]
@@ -37,13 +42,13 @@ def load_year(year: int) -> pd.DataFrame:
     
     # some yearly files have trailing whitespace in header names (e.g. 'F2H02   ' in 2014).
     df.columns = df.columns.str.strip()
-    present = [c for c in KEEP if c in df.columns]
-    missing = [c for c in KEEP if c not in df.columns]
+    present = [c for c in KEEP_ALL if c in df.columns]
+    missing = [c for c in KEEP_ALL if c not in df.columns]
     df = df[present].copy()
     for c in missing:
         df[c] = pd.NA
     df["year"] = year
-    return df[["UNITID", "year"] + KEEP[1:]]
+    return df[["UNITID", "year"] + KEEP[1:] + KEEP_FLAGS]
 
 
 def main() -> None:
