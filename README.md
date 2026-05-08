@@ -1,4 +1,4 @@
-# clausura
+# Closure
 
 Early-warning signal for U.S. private not-for-profit college closures, built on public IPEDS data.
 
