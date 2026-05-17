@@ -13,6 +13,15 @@ INFERENCE_AS_OF = 2024  # unlabeled cohort for forward-looking watchlist
 HORIZON_YEARS = 5
 WINDOW_LEN = 3  # look-back including the as-of year itself
 
+# Cohort scope: private nonprofit only. Implemented as an EXCLUSION of
+# institutions ever classified as public (sector 1/4/7, control 1) or
+# for-profit (sector 3/6/9, control 3). NaN-sector rows are kept because
+# closed institutions disproportionately lose their HD record and would
+# otherwise be silently dropped — an include-only filter cost us ~95% of
+# positive examples in testing.
+EXCLUDE_SECTORS = {1, 3, 4, 6, 7, 9}
+EXCLUDE_CONTROLS = {1, 3}
+
 NUM = [
     "F2D01", "F2D16", "F2A02", "F2A03",
     "total_expenses", "change_in_net_assets", "expendable_net_assets",
@@ -152,6 +161,13 @@ def main() -> None:
     print(f"loading {PROC/'f2_labeled.csv'} and {PROC/'effy_combined.csv'}")
     labeled = pd.read_csv(PROC / "f2_labeled.csv", low_memory=False)
     effy = pd.read_csv(PROC / "effy_combined.csv")
+
+    known_non_np = labeled["SECTOR"].isin(EXCLUDE_SECTORS) | labeled["CONTROL"].isin(EXCLUDE_CONTROLS)
+    exclude_unitids = set(labeled.loc[known_non_np, "UNITID"].unique())
+    before = labeled["UNITID"].nunique()
+    labeled = labeled[~labeled["UNITID"].isin(exclude_unitids)].copy()
+    print(f"excluded {len(exclude_unitids)} institutions known to be public or for-profit "
+          f"({before} → {labeled['UNITID'].nunique()} unique UNITIDs)")
 
     closure_year = compute_closure_years(labeled)
     n_closed = int(closure_year.notna().sum())
