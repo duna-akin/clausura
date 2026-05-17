@@ -9,6 +9,7 @@ ROOT = Path(__file__).resolve().parent.parent
 PROC = ROOT / "processed_data"
 
 AS_OF_YEARS = [2016, 2017, 2018, 2019]
+INFERENCE_AS_OF = 2024  # unlabeled cohort for forward-looking watchlist
 HORIZON_YEARS = 5
 WINDOW_LEN = 3  # look-back including the as-of year itself
 
@@ -118,6 +119,7 @@ def build_one_cohort(
     effy: pd.DataFrame,
     closure_year: pd.Series,
     as_of_year: int,
+    with_label: bool = True,
 ) -> pd.DataFrame:
     window = list(range(as_of_year - WINDOW_LEN + 1, as_of_year + 1))
 
@@ -138,9 +140,10 @@ def build_one_cohort(
     s = combined["total_enrollment__last"]
     combined["log_total_enrollment"] = np.sign(s) * np.log1p(np.abs(s))
 
-    cy = closure_year.reindex(combined.index)
-    label = ((cy.notna()) & (cy <= as_of_year + HORIZON_YEARS)).astype(int)
-    combined["closed_within_horizon"] = label
+    if with_label:
+        cy = closure_year.reindex(combined.index)
+        label = ((cy.notna()) & (cy <= as_of_year + HORIZON_YEARS)).astype(int)
+        combined["closed_within_horizon"] = label
     combined["as_of_year"] = as_of_year
     return combined
 
@@ -178,6 +181,15 @@ def main() -> None:
     out_path = PROC / "f2_effy_features_multicohort.csv"
     combined.to_csv(out_path)
     print(f"\nwrote {out_path}")
+
+    print(f"\nbuilding inference matrix for as_of={INFERENCE_AS_OF} (unlabeled)...")
+    inf = build_one_cohort(labeled, effy, closure_year, INFERENCE_AS_OF, with_label=False)
+    print(f"as_of={INFERENCE_AS_OF}: {len(inf)} institutions (no label, for forward prediction)")
+    inf.index.name = "UNITID"
+    inf = inf.reset_index().set_index(["UNITID", "as_of_year"])
+    inf_path = PROC / "f2_effy_features_asof2024_inference.csv"
+    inf.to_csv(inf_path)
+    print(f"wrote {inf_path}")
 
 
 if __name__ == "__main__":
